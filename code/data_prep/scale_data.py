@@ -1,0 +1,65 @@
+import pandas as pd
+import json
+import numpy as np
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
+
+def scale_data():
+    prostate_populations = range(15, 17)
+    all_scaled = {}
+
+    for population in prostate_populations:
+        print(f"Population {population} started scaling.")
+        multiclass_path = f"/wynton/protected/home/fhuanglab/ardademirci/Data_Specific_Epithelial/wynton_code/phenotype_multiclass_label/data_{population}_phenotype_multiclass.txt"
+        count_path = f"/wynton/protected/home/fhuanglab/ardademirci/Data_Specific_Epithelial/wynton_code/nn_files/count_data/data_{population}_count.txt"
+        multiclass_phenotype = pd.read_csv(multiclass_path, sep='\t')
+        pop_count_data = pd.read_csv(count_path, sep='\t')
+        pop_count_data = pop_count_data.T
+
+        pop_count_data['vector'] = pop_count_data.apply(lambda row: row.values, axis=1)
+        pop_count_data = pop_count_data[['vector']]
+        # pop_count_data['Barcode'] = pop_count_data.index
+        pop_count_data['barcode'] = pop_count_data.index
+        pop_count_data = pop_count_data.reset_index(drop=True)
+
+        df1 = multiclass_phenotype 
+        df2 = pop_count_data
+
+        merged_multiclass = df1.merge(df2, on='barcode', how='inner')
+        # merged_multiclass = merged_multiclass.rename(columns={'Barcode': 'barcode', 'Phenotype': 'phenotype'})
+
+        # Extract the 'vector' column as a separate DataFrame
+        vectors_df = pd.DataFrame(merged_multiclass['vector'].tolist())
+
+        # Initialize the StandardScaler
+        scaler = StandardScaler()
+
+        # Scale the values within each array
+        scaled_vectors_df = pd.DataFrame(scaler.fit_transform(vectors_df), columns=vectors_df.columns, index=vectors_df.index)
+
+        # Add the scaled vector as a new column
+        merged_multiclass['scaled_vector'] = scaled_vectors_df.values.tolist()
+
+        # Get rid of the NaN at the end
+        merged_multiclass['scaled_vector'] = merged_multiclass['scaled_vector'].apply(lambda x: x[:-1])
+
+        vect_list = merged_multiclass['scaled_vector'].tolist()
+        vect_list_np = [np.array(arr) for arr in vect_list]
+        vect_list_32 = [arr.astype(np.float32) for arr in vect_list_np]
+        merged_multiclass['scaled_vector'] = vect_list_32
+
+        scaled_multiclass_data = merged_multiclass[['barcode', 'phenotype', 'scaled_vector']]
+        scaled_multiclass_data['scaled_vector'] = scaled_multiclass_data['scaled_vector'].apply(list)
+
+        scaled_path = f"multiclass_fp32/scaled_multiclass_data_{population}.txt"
+        scaled_multiclass_data.to_csv(scaled_path)
+
+        print(f"Scaling done for population {population}.")
+        all_scaled[population] = scaled_multiclass_data
+    
+    return all_scaled
+
+if __name__ == "__main__":
+    scale_data()
+
+
