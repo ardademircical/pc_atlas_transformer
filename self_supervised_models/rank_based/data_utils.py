@@ -2,24 +2,20 @@ import torch
 from torch.nn.utils.rnn import pad_sequence
 
 def mask_tokens(inputs, tokenizer, mlm_probability=0.15):
-    """Prepare masked tokens inputs/labels for masked language modeling."""
+    """Prepare masked tokens inputs/labels for masked language modeling, focusing on gene sequences."""
     labels = inputs.clone()
-    # Mask 15% of tokens in each sequence at random.
-    probability_matrix = torch.full(labels.shape, mlm_probability)
-    masked_indices = torch.bernoulli(probability_matrix).bool()
-    labels[~masked_indices] = -100  # We only compute loss on masked tokens
-
-    # 80% of the time, replace masked input tokens with tokenizer.mask_token ([MASK])
-    indices_replaced = torch.bernoulli(torch.full(labels.shape, 0.8)).bool() & masked_indices
-    inputs[indices_replaced] = tokenizer.mask_token_id  # Assuming your tokenizer has a mask_token_id attribute
-
-    # 10% of the time, replace masked input tokens with random word
-    indices_random = torch.bernoulli(torch.full(labels.shape, 0.1)).bool() & masked_indices & ~indices_replaced
-    random_words = torch.randint(len(tokenizer.vocab), labels.shape, dtype=torch.long)
-    inputs[indices_random] = random_words[indices_random]
-
-    # The rest of the time (10% of the time), keep the masked input tokens unchanged
+    
+    # Generate a mask for selecting a subset of tokens to mask
+    masked_indices = torch.bernoulli(torch.full(labels.shape, mlm_probability)).bool()
+    
+    # Only compute loss on the masked tokens by setting the labels
+    labels[~masked_indices] = -100  # Tokens not selected for masking will be ignored in the loss computation
+    
+    # Replace selected tokens with tokenizer.mask_token_id for MLM task
+    inputs[masked_indices] = tokenizer.mask_token_id
+    
     return inputs, labels
+
 
 def collate_fn(batch):
     """Custom collate_fn for DataLoader to process batches."""
