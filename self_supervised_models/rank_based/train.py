@@ -11,6 +11,7 @@ from atlas_model_rank_based import AtlasModelRankBased
 from tokenizer import GeneTokenizer
 
 def start_loop():
+    # Assuming you have a tokenizer instance ready
     tokenizer = GeneTokenizer(vocab_file="path_to_vocab_file")
 
     # Load your dataset
