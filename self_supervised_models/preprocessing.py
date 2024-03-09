@@ -10,7 +10,7 @@ def preprocess(csv_path: str):
     Preprocess original prostate cancer cell atlas data.
     """
 
-    atlas_data = pd.read_csv("csv_path")
+    atlas_data = pd.read_csv(csv_path)
     atlas_data = atlas_data.T
     atlas_data.rename(columns={'Unnamed: 0': 'cells'})
     atlas_data.set_index('cells', inplace=True)
