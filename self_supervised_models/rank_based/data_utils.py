@@ -1,37 +1,55 @@
 import torch
 from torch.nn.utils.rnn import pad_sequence
+import numpy as np
 
-def mask_tokens(inputs, tokenizer, mlm_probability=0.15):
-    """Prepare masked tokens inputs/labels for masked language modeling, focusing on gene sequences."""
-    labels = inputs.clone()
+class DataCollatorForGeneModeling:
+    def __init__(self, tokenizer, mlm_probability=0.15, max_seq_length=4096):
+        self.tokenizer = tokenizer
+        self.mlm_probability = mlm_probability
+        self.max_seq_length = max_seq_length
+        self.pad_token_id = tokenizer.pad_token_id
+        self.mask_token_id = tokenizer.mask_token_id
     
-    # Generate a mask for selecting a subset of tokens to mask
-    masked_indices = torch.bernoulli(torch.full(labels.shape, mlm_probability)).bool()
-    
-    # Only compute loss on the masked tokens by setting the labels
-    labels[~masked_indices] = -100  # Tokens not selected for masking will be ignored in the loss computation
-    
-    # Replace selected tokens with tokenizer.mask_token_id for MLM task
-    inputs[masked_indices] = tokenizer.mask_token_id
-    
-    return inputs, labels
+    def __call__(self, batch):
+        max_length = min(self.max_seq_length, max([len(seq) for seq in batch]))
+        batch_input_ids = []
+        batch_padding_mask = []
+        batch_labels = []
 
+        for seq in batch:
+            # Trim sequences to max_seq_length
+            trimmed_seq = seq[:max_length]
+            input_ids, labels = self.mask_tokens(trimmed_seq, max_length)
+            padding_mask = [i == self.pad_token_id for i in input_ids]
+     
+            batch_input_ids.append(input_ids)
+            batch_padding_mask.append(padding_mask)
+            batch_labels.append(labels)
 
-def collate_fn(batch):
-    """Custom collate_fn for DataLoader to process batches."""
-    input_ids = [item['input_ids'] for item in batch]
-    labels = [item['labels'] for item in batch]  # Assuming labels are already part of your dataset items
+        batch_input_ids = torch.tensor(batch_input_ids, dtype=torch.long)
+        batch_padding_mask = torch.tensor(batch_padding_mask, dtype=torch.bool)
+        batch_labels = torch.tensor(batch_labels, dtype=torch.long)
 
-    # Pad sequences
-    input_ids_padded = pad_sequence(input_ids, batch_first=True, padding_value=0)  # Assuming 0 is your PAD token ID
-    labels_padded = pad_sequence(labels, batch_first=True, padding_value=-100)  # -100 is ignored by CrossEntropyLoss
+        return {'input_ids': batch_input_ids, 'padding_mask': batch_padding_mask, 'labels': batch_labels}
 
-    # Create attention masks
-    attention_mask = torch.zeros(input_ids_padded.shape, dtype=torch.long)
-    attention_mask[input_ids_padded != 0] = 1
+    def mask_tokens(self, input_ids, max_length):
+        # Create labels array
+        labels = [-100] * max_length
 
-    return {
-        "input_ids": input_ids_padded,
-        "attention_mask": attention_mask,
-        "labels": labels_padded
-    }
+        # Determine which tokens to mask for MLM
+        probability_matrix = np.full(len(input_ids), self.mlm_probability)
+        masked_indices = np.random.rand(len(input_ids)) < probability_matrix
+
+        # Apply masking, 80% MASK, 10% random token, 10% original token
+        for idx in range(len(input_ids)):
+            if masked_indices[idx]:
+                labels[idx] = input_ids[idx]  # Original token is the label for MLM
+                if np.random.rand() < 0.8:  # 80% -> MASK
+                    input_ids[idx] = self.mask_token_id
+                elif np.random.rand() < 0.5:  # 10% -> Random token
+                    input_ids[idx] = np.random.randint(3, len(self.tokenizer.idx2token.keys()))  # Assuming 0, 1, 2 are special tokens
+
+        # Pad input_ids to max_length
+        input_ids.extend([self.pad_token_id] * (max_length - len(input_ids)))
+
+        return input_ids, labels
