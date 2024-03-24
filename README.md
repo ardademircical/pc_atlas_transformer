@@ -13,6 +13,7 @@ Configs include:
 * March 8, 2024: Ranked gene identity model almost finished. Fixes required for `GeneExpressionDataset`, training loop incomplete.
 
 * March 22, 2024: Ranked gene identity model with RMSNorm + Swish activation. Training loop, collator, tokenizer updates.
+* March 23, 2024: Mixed precision training and dataset caching for ranked gene identity model.
 
 
 Estimated timeline: all building/training should finish by end of March
